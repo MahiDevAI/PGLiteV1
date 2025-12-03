@@ -27,16 +27,18 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             const isActive = location === item.href;
             const Icon = item.icon;
             return (
-              <Link key={item.href} href={item.href}>
-                <a className={cn(
+              <Link 
+                key={item.href} 
+                href={item.href}
+                className={cn(
                   "flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200 group",
                   isActive 
                     ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-lg shadow-primary/20" 
                     : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                )}>
-                  <Icon className={cn("w-5 h-5 transition-colors", isActive ? "text-white" : "text-sidebar-foreground/50 group-hover:text-sidebar-accent-foreground")} />
-                  {item.label}
-                </a>
+                )}
+              >
+                <Icon className={cn("w-5 h-5 transition-colors", isActive ? "text-white" : "text-sidebar-foreground/50 group-hover:text-sidebar-accent-foreground")} />
+                {item.label}
               </Link>
             );
           })}
