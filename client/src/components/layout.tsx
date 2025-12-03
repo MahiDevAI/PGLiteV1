@@ -1,6 +1,6 @@
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, ShoppingCart, Settings, CreditCard, LogOut, ShieldCheck } from "lucide-react";
+import { LayoutDashboard, ShoppingCart, Settings, CreditCard, LogOut, ShieldCheck, AlertTriangle } from "lucide-react";
 import logoImage from "@assets/generated_images/minimalist_abstract_shield_logo_for_fintech_app.png";
 
 export default function Layout({ children }: { children: React.ReactNode }) {
@@ -10,6 +10,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
     { href: "/orders", label: "Orders", icon: ShoppingCart },
     { href: "/transactions", label: "Transactions", icon: CreditCard },
+    { href: "/unmapped", label: "Unmapped", icon: AlertTriangle },
     { href: "/settings", label: "Settings", icon: Settings },
   ];
 

@@ -197,11 +197,77 @@ export default function PaymentPage() {
                 </Button>
                 
                 <div className="grid grid-cols-2 gap-3 w-full">
-                  <Button variant="outline" className="w-full border-dashed" data-testid="button-download-qr">
+                  <Button 
+                    variant="outline" 
+                    className="w-full border-dashed" 
+                    data-testid="button-download-qr"
+                    onClick={async () => {
+                      try {
+                        const qrPath = order.qrPath || `/uploads/qr/${order.orderId}.png`;
+                        const response = await fetch(qrPath);
+                        if (!response.ok) throw new Error("Failed to fetch QR");
+                        const blob = await response.blob();
+                        const url = window.URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = url;
+                        a.download = `ChargePay-QR-${order.orderId}.png`;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        window.URL.revokeObjectURL(url);
+                      } catch (error) {
+                        console.error("Download failed:", error);
+                        alert("Failed to download QR. Please try again.");
+                      }
+                    }}
+                  >
                     <Download className="w-4 h-4 mr-2" />
                     Save QR
                   </Button>
-                  <Button variant="outline" className="w-full border-dashed" data-testid="button-share">
+                  <Button 
+                    variant="outline" 
+                    className="w-full border-dashed" 
+                    data-testid="button-share"
+                    onClick={async () => {
+                      try {
+                        if (navigator.share) {
+                          const qrPath = order.qrPath || `/uploads/qr/${order.orderId}.png`;
+                          const response = await fetch(qrPath);
+                          if (response.ok) {
+                            const blob = await response.blob();
+                            const file = new File([blob], `ChargePay-QR-${order.orderId}.png`, { type: "image/png" });
+                            
+                            const shareData: ShareData = {
+                              title: `Payment Request - ₹${order.amount}`,
+                              text: `Pay ₹${order.amount} to complete your order. Scan QR with GPay/PhonePe/Paytm.`,
+                            };
+                            
+                            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                              shareData.files = [file];
+                            } else {
+                              shareData.url = window.location.href;
+                            }
+                            
+                            await navigator.share(shareData);
+                          } else {
+                            await navigator.share({
+                              title: `Payment Request - ₹${order.amount}`,
+                              text: `Pay ₹${order.amount} to complete your order.`,
+                              url: window.location.href,
+                            });
+                          }
+                        } else {
+                          await navigator.clipboard.writeText(window.location.href);
+                          alert("Link copied to clipboard!");
+                        }
+                      } catch (error) {
+                        if ((error as Error).name !== "AbortError") {
+                          await navigator.clipboard.writeText(window.location.href);
+                          alert("Link copied to clipboard!");
+                        }
+                      }
+                    }}
+                  >
                     <Share2 className="w-4 h-4 mr-2" />
                     Share
                   </Button>

@@ -151,3 +151,14 @@ export const notificationsApi = {
     });
   },
 };
+
+// Unmapped Notifications API
+export interface UnmappedNotification {
+  id: number;
+  notificationJson: Record<string, unknown>;
+  receivedAt: string;
+}
+
+export const unmappedNotificationsApi = {
+  getAll: () => fetchApi<UnmappedNotification[]>("/unmapped-notifications"),
+};
