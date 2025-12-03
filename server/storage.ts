@@ -9,12 +9,15 @@ import { db } from "./db";
 import { eq, desc, sql } from "drizzle-orm";
 import { randomBytes } from "crypto";
 
+const ORDER_TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes
+
 export interface IStorage {
   // Orders
   getOrders(): Promise<Order[]>;
   getOrderByOrderId(orderId: string): Promise<Order | undefined>;
   createOrder(order: InsertOrder): Promise<Order>;
   updateOrderStatus(orderId: string, status: string, timestamp?: Date): Promise<Order | undefined>;
+  expireStaleOrders(): Promise<void>;
 
   // Transactions
   getTransactions(): Promise<Transaction[]>;
@@ -93,6 +96,17 @@ export class DatabaseStorage implements IStorage {
       .returning();
     
     return order;
+  }
+
+  async expireStaleOrders(): Promise<void> {
+    const cutoffTime = new Date(Date.now() - ORDER_TIMEOUT_MS);
+    const allOrders = await db.select().from(orders).where(eq(orders.status, "PENDING"));
+    
+    for (const order of allOrders) {
+      if (new Date(order.createdAt) < cutoffTime) {
+        await this.updateOrderStatus(order.orderId, "EXPIRED");
+      }
+    }
   }
 
   // Transactions

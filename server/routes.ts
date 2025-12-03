@@ -97,6 +97,8 @@ export async function registerRoutes(
   // Get all orders
   app.get("/api/orders", async (req, res) => {
     try {
+      // Expire stale orders before fetching
+      await storage.expireStaleOrders();
       const orders = await storage.getOrders();
       res.json(orders);
     } catch (error) {
@@ -108,6 +110,8 @@ export async function registerRoutes(
   // Get single order
   app.get("/api/orders/:orderId", async (req, res) => {
     try {
+      // Check if order should be expired
+      await storage.expireStaleOrders();
       const order = await storage.getOrderByOrderId(req.params.orderId);
       if (!order) {
         return res.status(404).json({ error: "Order not found" });
@@ -143,11 +147,11 @@ export async function registerRoutes(
       // Create order
       const order = await storage.createOrder(parseResult.data);
 
-      // Generate UPI payload
+      // Generate UPI payload (amount is already in rupees)
       const upiPayload = buildUpiPayload(
         order.receiverUpiId,
         settings.merchantName,
-        order.amount / 100, // Convert paise to rupees if storing in paise
+        order.amount,
         order.orderId
       );
 
@@ -351,6 +355,8 @@ export async function registerRoutes(
 
   app.get("/api/dashboard/stats", async (req, res) => {
     try {
+      // Expire stale orders before calculating stats
+      await storage.expireStaleOrders();
       const stats = await storage.getDashboardStats();
       res.json(stats);
     } catch (error) {
