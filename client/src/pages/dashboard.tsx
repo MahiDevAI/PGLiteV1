@@ -1,11 +1,11 @@
-import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import Layout from "@/components/layout";
-import { db } from "@/lib/mock-data";
+import { dashboardApi, transactionsApi } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { ArrowUpRight, ArrowDownRight, DollarSign, CreditCard, Activity, Users } from "lucide-react";
+import { ArrowUpRight, DollarSign, CreditCard, Activity, Users, Loader2 } from "lucide-react";
 
-const data = [
+const chartData = [
   { name: 'Mon', total: 1200 },
   { name: 'Tue', total: 2100 },
   { name: 'Wed', total: 800 },
@@ -16,32 +16,21 @@ const data = [
 ];
 
 export default function DashboardPage() {
-  const [stats, setStats] = useState({
-    totalRevenue: 0,
-    activeOrders: 0,
-    successRate: 98,
-    todayTransactions: 0
+  const { data: stats, isLoading: statsLoading } = useQuery({
+    queryKey: ["/api/dashboard/stats"],
+    queryFn: dashboardApi.getStats,
+    refetchInterval: 5000,
   });
 
-  useEffect(() => {
-    const calculateStats = () => {
-      const orders = db.getOrders();
-      const completed = orders.filter(o => o.status === 'COMPLETED');
-      const pending = orders.filter(o => o.status === 'PENDING');
-      
-      const revenue = completed.reduce((sum, o) => sum + o.amount, 0);
-      
-      setStats({
-        totalRevenue: revenue,
-        activeOrders: pending.length,
-        successRate: orders.length > 0 ? Math.round((completed.length / orders.length) * 100) : 100,
-        todayTransactions: completed.length
-      });
-    };
+  const { data: transactions } = useQuery({
+    queryKey: ["/api/transactions"],
+    queryFn: transactionsApi.getAll,
+    refetchInterval: 5000,
+  });
 
-    calculateStats();
-    return db.subscribe(calculateStats);
-  }, []);
+  const successRate = stats && stats.totalOrders > 0 
+    ? Math.round((stats.completedOrders / stats.totalOrders) * 100) 
+    : 100;
 
   return (
     <Layout>
@@ -58,11 +47,17 @@ export default function DashboardPage() {
             <DollarSign className="h-4 w-4 text-emerald-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold font-heading">₹{stats.totalRevenue.toLocaleString()}</div>
-            <p className="text-xs text-emerald-500 flex items-center mt-1">
-              <ArrowUpRight className="h-3 w-3 mr-1" />
-              +20.1% from last month
-            </p>
+            {statsLoading ? (
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            ) : (
+              <>
+                <div className="text-2xl font-bold font-heading">₹{(stats?.totalRevenue || 0).toLocaleString()}</div>
+                <p className="text-xs text-emerald-500 flex items-center mt-1">
+                  <ArrowUpRight className="h-3 w-3 mr-1" />
+                  From completed orders
+                </p>
+              </>
+            )}
           </CardContent>
         </Card>
 
@@ -72,10 +67,16 @@ export default function DashboardPage() {
             <Activity className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold font-heading">{stats.activeOrders}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Waiting for payment
-            </p>
+            {statsLoading ? (
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            ) : (
+              <>
+                <div className="text-2xl font-bold font-heading">{stats?.activeOrders || 0}</div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Waiting for payment
+                </p>
+              </>
+            )}
           </CardContent>
         </Card>
 
@@ -85,24 +86,36 @@ export default function DashboardPage() {
             <CreditCard className="h-4 w-4 text-blue-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold font-heading">{stats.successRate}%</div>
-            <p className="text-xs text-blue-500 flex items-center mt-1">
-              <ArrowUpRight className="h-3 w-3 mr-1" />
-              +2% from yesterday
-            </p>
+            {statsLoading ? (
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            ) : (
+              <>
+                <div className="text-2xl font-bold font-heading">{successRate}%</div>
+                <p className="text-xs text-blue-500 flex items-center mt-1">
+                  <ArrowUpRight className="h-3 w-3 mr-1" />
+                  Completion rate
+                </p>
+              </>
+            )}
           </CardContent>
         </Card>
 
-         <Card className="bg-card/50 backdrop-blur-sm hover:shadow-md transition-shadow border-border/60">
+        <Card className="bg-card/50 backdrop-blur-sm hover:shadow-md transition-shadow border-border/60">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Today's Txns</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total Orders</CardTitle>
             <Users className="h-4 w-4 text-orange-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold font-heading">{stats.todayTransactions}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Processed today
-            </p>
+            {statsLoading ? (
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            ) : (
+              <>
+                <div className="text-2xl font-bold font-heading">{stats?.totalOrders || 0}</div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  All time
+                </p>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -111,11 +124,11 @@ export default function DashboardPage() {
       <div className="grid gap-4 md:grid-cols-7 mb-8">
         <Card className="col-span-4 bg-card/50 backdrop-blur-sm border-border/60">
           <CardHeader>
-             <CardTitle>Revenue Overview</CardTitle>
+            <CardTitle>Revenue Overview</CardTitle>
           </CardHeader>
           <CardContent className="pl-2">
             <ResponsiveContainer width="100%" height={300}>
-              <AreaChart data={data}>
+              <AreaChart data={chartData}>
                 <defs>
                   <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3}/>
@@ -156,20 +169,26 @@ export default function DashboardPage() {
 
         <Card className="col-span-3 bg-card/50 backdrop-blur-sm border-border/60">
           <CardHeader>
-            <CardTitle>Recent Activity</CardTitle>
+            <CardTitle>Recent Transactions</CardTitle>
           </CardHeader>
           <CardContent>
-             <div className="space-y-8">
-                {[1,2,3,4,5].map((i) => (
-                  <div key={i} className="flex items-center">
+            <div className="space-y-6">
+              {transactions && transactions.length > 0 ? (
+                transactions.slice(0, 5).map((txn) => (
+                  <div key={txn.id} className="flex items-center">
                     <div className="space-y-1">
-                      <p className="text-sm font-medium leading-none text-foreground">Payment Received</p>
-                      <p className="text-xs text-muted-foreground">User 9823 paid via UPI</p>
+                      <p className="text-sm font-medium leading-none text-foreground">{txn.payerName}</p>
+                      <p className="text-xs text-muted-foreground">Order {txn.orderId}</p>
                     </div>
-                    <div className="ml-auto font-bold font-heading text-emerald-600">+₹{(Math.random() * 1000).toFixed(2)}</div>
+                    <div className="ml-auto font-bold font-heading text-emerald-600">Received</div>
                   </div>
-                ))}
-             </div>
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-8">
+                  No transactions yet. Create an order to get started.
+                </p>
+              )}
+            </div>
           </CardContent>
         </Card>
       </div>

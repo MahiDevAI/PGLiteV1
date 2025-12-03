@@ -1,5 +1,8 @@
 import { Switch, Route } from "wouter";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { queryClient } from "./lib/queryClient";
 import { Toaster } from "@/components/ui/toaster";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import DashboardPage from "@/pages/dashboard";
 import OrdersPage from "@/pages/orders";
 import PaymentPage from "@/pages/payment";
@@ -22,10 +25,12 @@ function Router() {
 
 function App() {
   return (
-    <>
-      <Router />
-      <Toaster />
-    </>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Router />
+      </TooltipProvider>
+    </QueryClientProvider>
   );
 }
 
