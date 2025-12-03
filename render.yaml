@@ -1,24 +1,11 @@
 services:
   - type: web
-    name: pglitev1-backend
+    name: pglitev1
     env: node
     plan: free
-    branch: main
-    
-    # IMPORTANT: Remove root directory.
-    # Build must run from repo root so script/build.ts is found.
-    root: .
-
+    rootDir: server
     buildCommand: |
+      cd .. 
       npm install
       npm run build
-
     startCommand: node server/dist/index.cjs
-
-    healthCheckPath: /
-
-    envVars:
-      - key: NODE_ENV
-        value: production
-
-    autoDeploy: true
