@@ -1,0 +1,582 @@
+✅ FINAL SRS DOCUMENT — CHARGEPAY (Single Merchant, RBI-Compliant)
+Version: 2.0
+ Prepared by: Mahesh (Chargnew)
+ Date: Dec 2025
+
+1. INTRODUCTION
+1.1 Purpose
+ChargePay is a single-merchant UPI QR–based payment gateway system that:
+Generates UPI-compliant static/dynamic QR codes server-side
+
+
+Publishes a public payment webpage for each order
+
+
+Allows customers to pay by scanning the QR using GPay/PhonePe/Paytm
+
+
+Uses notification text (from Android listener app) to detect payments
+
+
+Maps payments strictly using a 10-digit order_id embedded in the QR
+
+
+Provides a dashboard to view orders, transactions, unmapped notifications
+
+
+Allows API whitelisting to control who can create orders
+
+
+The system does not handle UTR, settlements, refunds, or bank integrations.
+
+1.2 Scope
+System includes:
+Order creation
+
+
+QR generation
+
+
+Payment page generation
+
+
+Notification mapping
+
+
+Dashboard for reporting
+
+
+API whitelisting
+
+
+Audit events
+
+
+System excludes:
+Refunds
+
+
+UTR processing
+
+
+Multiple merchants
+
+
+Settlement or bank integration
+
+
+KYC & compliance checks
+
+
+
+2. SYSTEM OVERVIEW
+2.1 High-Level Process
+Admin or API client generates an order
+
+
+System builds UPI string
+
+
+System generates QR PNG image
+
+
+System hosts QR + payment webpage
+
+
+Customer scans or shares QR into GPay
+
+
+Customer pays
+
+
+Mobile listener app reads UPI notification
+
+
+Server extracts order_id from notification text
+
+
+Server updates order status
+
+
+Admin dashboard shows completed transactions
+
+
+
+3. ACTORS
+Actor
+Description
+Admin (Single User)
+Only merchant using the system
+Client App
+External system using the order creation API
+Customer
+Person paying via QR
+Mobile Listener App
+Reads UPI notifications & forwards to server
+Backend System
+Core logic, DB, QR generator
+Dashboard UI
+Used by Admin to view data
+
+
+4. FUNCTIONAL REQUIREMENTS (FULL LOGIC)
+4.1 API AUTHORIZATION & WHITELISTING
+FR-1 — API Access Control
+Every API request must satisfy at least ONE:
+Provide valid static API Key:
+
+ Authorization: Bearer <STATIC_API_KEY>
+
+
+OR Origin header must match an allowed domain.
+
+
+FR-2 — Domain Whitelisting
+Admin can manage allowed domains:
+Add / Remove domains
+
+
+Only whitelisted domains can call /orders
+
+
+Invalid domains → HTTP 403.
+
+4.2 ORDER MANAGEMENT
+FR-3 — Order Creation
+Endpoint: POST /orders
+Input fields:
+amount
+
+
+customer_name (optional)
+
+
+customer_mobile (optional)
+
+
+receiver_upi_id
+
+
+metadata (json, optional)
+
+
+Behavior:
+Validate mandatory fields
+
+
+Generate 10-digit numeric order_id (unique)
+
+
+Create UPI payload string
+
+
+Generate QR PNG
+
+
+Save QR image
+
+
+Create a public payment page URL
+
+
+Create DB record
+
+
+Set initial state = PENDING
+
+
+Response:
+order_id
+
+
+qr_image_url
+
+
+qr_page_url
+
+
+status
+
+
+
+FR-4 — ORDER LIFECYCLE
+State
+Meaning
+PENDING
+QR ready, waiting for payment
+COMPLETED
+Payment received within time
+EXPIRED
+Payment received after timeout
+FAILED
+Timeout passed without payment
+UNMAPPED
+Notification didn’t match any order
+
+FR-5 — Order Timeout Logic
+Timeout window = 2 minutes
+
+
+If notification comes after 2 mins → mark as EXPIRED but still generate a late transaction record
+
+
+
+4.3 UPI QR GENERATION LOGIC (FULL DETAIL)
+FR-6 — UPI Payload Construction
+UPI QR MUST follow BHIM UPI standards.
+Base Format:
+upi://pay?pa=<upi_id>&pn=<merchant_name>&am=<amount>&tr=<order_id>&tn=<order_id>
+
+Fields used:
+Parameter
+Meaning
+Requirement
+pa
+Receiver UPI ID
+Mandatory
+pn
+Payee Name
+Mandatory
+am
+Amount
+Mandatory (fixed)
+tr
+Transaction reference
+MUST contain 10-digit order_id
+tn
+Transaction note
+MUST contain 10-digit order_id
+
+Rules:
+No deep link Intent button must be created (RBI compliance)
+
+
+QR must embed exact UPI payload without shortening
+
+
+Max payload length must not exceed QR version limits (<= 2.4 KB of data)
+
+
+
+FR-7 — QR Image Generation
+QR Specifications:
+Standard QR Code (ISO/IEC 18004)
+
+
+Format: PNG
+
+
+Size: 512 × 512 px minimum
+
+
+Margin: at least 4 modules
+
+
+Error correction: ECC Level M (15%)
+
+
+Encoding: UTF-8
+
+
+Black modules on white background
+
+
+QR Version Strategy
+QR generator must auto-select version based on payload size.
+Usually UPI payload fits in:
+Version 10–15
+
+
+ECC M
+
+
+QR version is auto-computed by QR library.
+
+FR-8 — QR Hosting
+QR file stored as:
+/uploads/qr/<order_id>.png
+
+Must be publicly accessible.
+
+4.4 PAYMENT WEBPAGE
+FR-9 — Payment Page Requirements
+URL:
+https://domain.com/pay/<order_id>
+
+Page must include:
+QR image
+
+
+Amount
+
+
+Order ID
+
+
+Instructions
+
+
+Share to Google Pay button
+
+
+Download QR fallback button
+
+
+Real-time status polling (every 3 seconds)
+
+
+FR-10 — Share-to-GPay Logic (Important RBI-Compliant Requirement)
+Uses Web Share API to share QR PNG file
+
+
+Customer chooses “Google Pay”
+
+
+GPay opens → QR is read internally
+
+
+Customer pays normally
+
+
+Fallback behavior:
+Download QR
+
+
+Customer opens GPay → Scan QR from gallery
+
+
+
+4.5 NOTIFICATION PROCESSING
+FR-11 — Notification API
+Endpoint: POST /notifications
+Payload example:
+{
+  "android.title": "Abishek P paid you ₹10.00",
+  "android.text": "1001234567",
+  "android.bigText": "1001234567"
+}
+
+FR-12 — Extracting Logic
+Order ID must be read from:
+android.bigText
+
+
+If missing → android.text
+
+
+Regex required:
+/(\d{10})/
+
+FR-13 — Processing Logic
+Case A — Order found AND within 2 minutes
+ → Mark COMPLETED
+Case B — Order found BUT expired
+ → Record late transaction
+ → Order remains EXPIRED
+Case C — Order not found
+ → Save to unmapped_notifications
+All notifications (matched or unmapped) must be logged.
+
+4.6 TRANSACTIONS
+FR-14 — Create Transaction Record
+When payment received:
+Record fields:
+order_id
+
+
+payer_name
+
+
+notification_json
+
+
+is_late_payment
+
+
+timestamp
+
+
+
+4.7 DASHBOARD
+FR-15 — Orders Dashboard
+View all orders
+
+
+Filter by date, status
+
+
+Click order → detail page
+
+
+See QR preview
+
+
+See payment history
+
+
+FR-16 — Transactions Dashboard
+List all completed + late payments
+
+
+Filter by date
+
+
+View payer name, amount, timestamp
+
+
+FR-17 — Unmapped Notifications
+Show raw notification text
+
+
+Show time received
+
+
+FR-18 — Whitelist Settings
+Admin can:
+View allowed domains
+
+
+Add domain
+
+
+Remove domain
+
+
+FR-19 — API Keys & Tokens
+Admin can regenerate:
+Static API key (for client)
+
+
+Listener token (for mobile listener)
+
+
+
+5. DATA MODEL (FUNCTIONAL)
+orders
+order_id
+
+
+amount
+
+
+status
+
+
+created_at
+
+
+pending_at
+
+
+completed_at
+
+
+expired_at
+
+
+qr_path
+
+
+metadata
+
+
+transactions
+id
+
+
+order_id
+
+
+payer_name
+
+
+notification_json
+
+
+is_late_payment
+
+
+created_at
+
+
+unmapped_notifications
+id
+
+
+notification_json
+
+
+received_at
+
+
+settings
+static_api_key
+
+
+listener_token
+
+
+allowed_domains[]
+
+
+
+6. NON-FUNCTIONAL REQUIREMENTS
+Security
+HTTPS mandatory
+
+
+Token-based authorization
+
+
+Origin check
+
+
+QR images publicly readable but not modifiable
+
+
+Logs stored for 12 months
+
+
+Performance
+Order creation < 200ms
+
+
+QR generation < 150ms
+
+
+Notification processing < 100ms
+
+
+Availability
+99% uptime provision
+
+
+
+7. QUALITY REQUIREMENTS
+Consistent order_id mapping
+
+
+Zero false positives
+
+
+No UPI Intent usage
+
+
+QR must remain static for lifetime of order
+
+
+Notification mapping must be resilient to format variations
+
+
+
+8. EXCEPTIONS & EDGE CASES
+Case — Notification arrives twice
+→ First processed; second ignored but logged
+Case — Customer pays different amount
+→ Still valid (mapping is ONLY by order_id)
+Case — Notification missing bigText
+→ Use text fallback
+Case — Payment after timeout
+→ Order EXPIRED; transaction recorded late
+Case — No matching order
+→ Insert into unmapped_notifications table
