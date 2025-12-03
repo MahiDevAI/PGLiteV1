@@ -1,69 +1,57 @@
-import { build as esbuild } from "esbuild";
 import { build as viteBuild } from "vite";
-import { rm, readFile } from "fs/promises";
+import { rm } from "fs/promises";
+import ts from "typescript";
+import path from "path";
 
-const allowlist = [
-  "@google/generative-ai",
-  "@neondatabase/serverless",
-  "axios",
-  "connect-pg-simple",
-  "cors",
-  "date-fns",
-  "drizzle-orm",
-  "drizzle-zod",
-  "express",
-  "express-rate-limit",
-  "express-session",
-  "jsonwebtoken",
-  "memorystore",
-  "multer",
-  "nanoid",
-  "nodemailer",
-  "openai",
-  "passport",
-  "passport-local",
-  "stripe",
-  "uuid",
-  "ws",
-  "xlsx",
-  "zod",
-  "zod-validation-error",
-];
 
 async function buildAll() {
-  await rm("server/dist", { recursive: true, force: true });
+console.log("🧹 Cleaning server/dist and dist...");
+await rm(path.join("server", "dist"), { recursive: true, force: true });
+await rm("dist", { recursive: true, force: true });
 
-  console.log("Building client...");
-  await viteBuild();
 
-  console.log("Building server...");
-  const pkg = JSON.parse(await readFile("package.json", "utf-8"));
+console.log("🎨 Building client (Vite)...");
+await viteBuild();
 
-  const deps = [
-    ...Object.keys(pkg.dependencies || {}),
-    ...Object.keys(pkg.devDependencies || {}),
-  ];
 
-  const externals = deps.filter((d) => !allowlist.includes(d));
+console.log("⚙️ Compiling server (TypeScript -> JS)...");
 
-  await esbuild({
-    entryPoints: ["server/index.ts"],
-    outfile: "server/dist/index.cjs",
-    platform: "node",
-    bundle: true,
-    format: "cjs",
-    minify: true,
-    define: {
-      "process.env.NODE_ENV": "\"production\"",
-    },
-    external: externals,
-    logLevel: "info",
-  });
 
-  console.log("Build complete!");
+// locate tsconfig in server/ and compile
+const tsConfigFile = ts.findConfigFile("./server", ts.sys.fileExists, "tsconfig.json");
+if (!tsConfigFile) {
+throw new Error("Could not find server/tsconfig.json");
 }
 
+
+const readResult = ts.readConfigFile(tsConfigFile, ts.sys.readFile);
+const parsed = ts.parseJsonConfigFileContent(readResult.config, ts.sys, path.dirname(tsConfigFile));
+
+
+const program = ts.createProgram(parsed.fileNames, parsed.options);
+const emitResult = program.emit();
+
+
+const allDiagnostics = ts.getPreEmitDiagnostics(program).concat(emitResult.diagnostics);
+if (allDiagnostics.length > 0) {
+allDiagnostics.forEach((d) => {
+const msg = ts.flattenDiagnosticMessageText(d.messageText, "\n");
+if (d.file && d.start !== undefined) {
+const { line, character } = d.file.getLineAndCharacterOfPosition(d.start);
+console.error(`${d.file.fileName} (${line + 1},${character + 1}): ${msg}`);
+} else {
+console.error(msg);
+}
+});
+throw new Error("TypeScript compilation errors");
+}
+
+
+console.log("✅ Server compiled to server/dist/*.js");
+}
+
+
 buildAll().catch((err) => {
-  console.error(err);
-  process.exit(1);
+console.error("❌ Build failed:\n", err);
+process.exit(1);
 });
