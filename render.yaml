@@ -1,50 +1,24 @@
-# ============================================================
-# Render Deployment Configuration for PGLiteV1
-# Unified SSR Build: backend + frontend compiled by Vite (server/vite.ts)
-# Place this file at: MahiDevAI/PGLiteV1/render.yaml
-# ============================================================
-
 services:
   - type: web
     name: pglitev1-backend
     env: node
     plan: free
     branch: main
+    
+    # IMPORTANT: Remove root directory.
+    # Build must run from repo root so script/build.ts is found.
+    root: .
 
-    # The backend + SSR build lives inside /server
-    root: server
-
-    # Build the backend bundle (also bundles frontend through Vite SSR config)
     buildCommand: |
       npm install
       npm run build
 
-    # Start the Vite-SSR-built server bundle
-    startCommand: node dist/index.cjs
+    startCommand: node server/dist/index.cjs
 
-    # IMPORTANT: Render requires PORT from env, ensure your server uses process.env.PORT
+    healthCheckPath: /
+
     envVars:
       - key: NODE_ENV
         value: production
 
-    # Basic health check for Render
-    # If your server has a /health or /api/health route, change this.
-    healthCheckPath: /
-
-    # Enable auto-deploys on commit
     autoDeploy: true
-
-    # OPTIONAL: Uncomment this block if you want a minimum instance size
-    # (free tier is used by default)
-    #
-    # plan: starter
-    # numInstances: 1
-    # region: oregon
-
-# ============================================================
-# NOTES:
-# - The frontend under /client is compiled automatically by Vite during `npm run build`.
-# - The root package.json contains all dependencies for client + server.
-# - Do NOT deploy client separately. This project is SSR-bundled as ONE service.
-# - Ensure server/index.ts binds to process.env.PORT.
-# ============================================================
